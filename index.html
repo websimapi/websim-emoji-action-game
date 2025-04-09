@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emoji Action Game</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      background-color: #121212;
+      color: #fff;
+      overflow: hidden;
+    }
+    
+    #game-container {
+      display: flex;
+      height: 100vh;
+    }
+    
+    #game-world {
+      flex: 3;
+      background-color: #1e1e1e;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    #comments-section {
+      flex: 1;
+      background-color: #252525;
+      padding: 20px;
+      overflow-y: auto;
+      min-width: 300px;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .comment {
+      background-color: #333;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 15px;
+    }
+    
+    .comment-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    
+    .comment-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      margin-right: 10px;
+    }
+    
+    .comment-username {
+      font-weight: bold;
+      color: #bb86fc;
+    }
+    
+    .comment-content {
+      margin-bottom: 10px;
+      word-wrap: break-word;
+    }
+    
+    .comment-reactions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+    
+    .reaction {
+      background-color: #444;
+      border-radius: 20px;
+      padding: 5px 10px;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      transition: background-color 0.2s;
+    }
+    
+    .reaction:hover {
+      background-color: #555;
+    }
+    
+    .reaction-count {
+      margin-left: 5px;
+      font-size: 14px;
+      color: #ccc;
+    }
+    
+    .comment-form {
+      margin-top: auto;
+      background-color: #333;
+      padding: 15px;
+      border-radius: 8px;
+    }
+    
+    .comment-input {
+      width: 100%;
+      padding: 10px;
+      border-radius: 5px;
+      border: none;
+      background-color: #444;
+      color: #fff;
+      margin-bottom: 10px;
+      resize: none;
+    }
+    
+    .comment-submit {
+      background-color: #bb86fc;
+      border: none;
+      color: #000;
+      padding: 8px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    
+    .player {
+      position: absolute;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      transition: transform 0.3s, left 0.3s, top 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      transform-origin: center bottom;
+    }
+    
+    .player-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid white;
+    }
+    
+    .player-name {
+      font-size: 12px;
+      margin-top: 5px;
+      white-space: nowrap;
+      background-color: rgba(0,0,0,0.5);
+      padding: 2px 5px;
+      border-radius: 3px;
+    }
+    
+    .action-bubble {
+      position: absolute;
+      background-color: rgba(0,0,0,0.7);
+      color: white;
+      padding: 5px 10px;
+      border-radius: 20px;
+      white-space: nowrap;
+      top: -30px;
+      left: 50%;
+      transform: translateX(-50%);
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      z-index: 10;
+    }
+    
+    .emoji-picker {
+      position: fixed;
+      bottom: 70px;
+      right: 20px;
+      background-color: #333;
+      border-radius: 8px;
+      padding: 10px;
+      display: none;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 5px;
+      z-index: 100;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }
+    
+    .emoji {
+      font-size: 24px;
+      cursor: pointer;
+      padding: 5px;
+      border-radius: 4px;
+    }
+    
+    .emoji:hover {
+      background-color: #444;
+    }
+    
+    #add-reaction-btn {
+      background-color: #444;
+      border: none;
+      color: #fff;
+      padding: 5px 10px;
+      border-radius: 20px;
+      cursor: pointer;
+      margin-top: 8px;
+      font-size: 12px;
+    }
+    
+    .action-log {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      background-color: rgba(0,0,0,0.7);
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      max-width: 400px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    
+    .log-entry {
+      margin-bottom: 5px;
+      font-size: 14px;
+    }
+    
+    .loading-spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s linear infinite;
+      margin-left: 10px;
+    }
+    
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    
+    .action-effect {
+      position: absolute;
+      pointer-events: none;
+      font-size: 40px;
+      animation: effect-animation 1s forwards;
+    }
+    
+    @keyframes effect-animation {
+      0% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(-50px) scale(1.5);
+        opacity: 0;
+      }
+    }
+    
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-20px); }
+    }
+    
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+    
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      50% { transform: translateX(5px); }
+      75% { transform: translateX(-5px); }
+    }
+  </style>
+</head>
+<body>
+  <div id="game-container">
+    <div id="game-world"></div>
+    <div id="comments-section">
+      <h2>Game Comments</h2>
+      <div id="comments-container"></div>
+      <div class="comment-form">
+        <textarea class="comment-input" placeholder="Write a comment..." rows="3"></textarea>
+        <button class="comment-submit">Post Comment</button>
+      </div>
+    </div>
+  </div>
+  
+  <div class="emoji-picker" id="emoji-picker">
+    <!-- Common emojis will be filled by JavaScript -->
+  </div>
+  
+  <div class="action-log" id="action-log"></div>
+  
+  <script>
+    // Initialize WebsimSocket for multiplayer functionality
+    const room = new WebsimSocket();
+    
+    // Setup collections
+    const commentCollection = 'comment_v1';
+    const reactionCollection = 'reaction_v1';
+    const emojiActionCollection = 'emoji_action_v1';
+    
+    // Game state and DOM elements
+    const gameWorld = document.getElementById('game-world');
+    const commentsContainer = document.getElementById('comments-container');
+    const commentInput = document.querySelector('.comment-input');
+    const commentSubmit = document.querySelector('.comment-submit');
+    const emojiPicker = document.getElementById('emoji-picker');
+    const actionLog = document.getElementById('action-log');
+    
+    // Current user info
+    let currentUser = null;
+    let currentCommentId = null; // For adding reactions
+    
+    // Game variables
+    const players = {};
+    const defaultActions = {
+      '👋': 'waves hello',
+      '😀': 'smiles happily',
+      '👍': 'gives a thumbs up',
+      '🏃': 'runs quickly',
+      '🕺': 'dances energetically',
+      '🤸': 'does a cartwheel',
+      '🦘': 'jumps like a kangaroo',
+      '🐱': 'meows like a cat',
+      '🐶': 'barks like a dog',
+      '💪': 'flexes muscles',
+      '🤔': 'thinks deeply',
+      '🤯': 'has mind blown',
+      '💃': 'dances gracefully',
+      '🚶': 'walks casually',
+      '👀': 'looks around suspiciously',
+      '💥': 'explodes dramatically'
+    };
+    
+    // Fill the emoji picker with common emojis
+    function initializeEmojiPicker() {
+      const commonEmojis = Object.keys(defaultActions);
+      
+      commonEmojis.forEach(emoji => {
+        const emojiElement = document.createElement('div');
+        emojiElement.className = 'emoji';
+        emojiElement.textContent = emoji;
+        emojiElement.addEventListener('click', () => {
+          addReaction(currentCommentId, emoji);
+          emojiPicker.style.display = 'none';
+        });
+        emojiPicker.appendChild(emojiElement);
+      });
+    }
+    
+    // Initialize the game
+    async function initialize() {
+      await room.initialize();
+      
+      // Set up presence with initial player position
+      const worldWidth = gameWorld.clientWidth;
+      const worldHeight = gameWorld.clientHeight;
+      
+      room.updatePresence({
+        x: Math.random() * (worldWidth - 100) + 50,
+        y: Math.random() * (worldHeight - 100) + 50,
+        lastAction: null,
+        lastActionTime: null,
+        currentAnimation: null
+      });
+      
+      // Subscribe to presence changes
+      room.subscribePresence(handlePresenceUpdate);
+      
+      // Load emoji actions from database
+      loadEmojiActions();
+      
+      // Subscribe to comments
+      room.collection(commentCollection).subscribe(renderComments);
+      
+      // Listen for window resize
+      window.addEventListener('resize', handleResize);
+      
+      // Initialize emoji picker
+      initializeEmojiPicker();
+      
+      // Set up event listener for comment submission
+      commentSubmit.addEventListener('click', submitComment);
+      
+      // Log initial entry
+      logAction('Connected to game!');
+    }
+    
+    // Handle presence updates (player movements and actions)
+    function handlePresenceUpdate(presence) {
+      // Update players based on presence
+      for (const clientId in presence) {
+        const playerData = presence[clientId];
+        const playerInfo = room.peers[clientId];
+        
+        if (!playerInfo) continue;
+        
+        // Create or update player
+        if (!players[clientId]) {
+          players[clientId] = createPlayerElement(playerInfo, playerData);
+          gameWorld.appendChild(players[clientId].element);
+        }
+        
+        // Update player position
+        const playerElement = players[clientId].element;
+        playerElement.style.left = `${playerData.x}px`;
+        playerElement.style.top = `${playerData.y}px`;
+        
+        // Handle new actions
+        if (playerData.lastAction && 
+            playerData.lastActionTime && 
+            (!players[clientId].lastActionTime || playerData.lastActionTime > players[clientId].lastActionTime)) {
+          performAction(clientId, playerData.lastAction);
+          players[clientId].lastActionTime = playerData.lastActionTime;
+        }
+        
+        // Update animation if needed
+        if (playerData.currentAnimation !== players[clientId].currentAnimation) {
+          updatePlayerAnimation(clientId, playerData.currentAnimation);
+          players[clientId].currentAnimation = playerData.currentAnimation;
+        }
+      }
+      
+      // Remove disconnected players
+      for (const clientId in players) {
+        if (!presence[clientId]) {
+          gameWorld.removeChild(players[clientId].element);
+          delete players[clientId];
+        }
+      }
+    }
+    
+    // Create a player DOM element
+    function createPlayerElement(playerInfo, playerData) {
+      const element = document.createElement('div');
+      element.className = 'player';
+      
+      const avatar = document.createElement('img');
+      avatar.className = 'player-avatar';
+      avatar.src = `https://images.websim.ai/avatar/${playerInfo.username}`;
+      avatar.alt = playerInfo.username;
+      
+      const name = document.createElement('div');
+      name.className = 'player-name';
+      name.textContent = playerInfo.username;
+      
+      const actionBubble = document.createElement('div');
+      actionBubble.className = 'action-bubble';
+      
+      element.appendChild(avatar);
+      element.appendChild(name);
+      element.appendChild(actionBubble);
+      
+      element.style.left = `${playerData.x}px`;
+      element.style.top = `${playerData.y}px`;
+      
+      return {
+        element,
+        actionBubble,
+        lastActionTime: playerData.lastActionTime,
+        currentAnimation: playerData.currentAnimation
+      };
+    }
+    
+    // Handle window resize
+    function handleResize() {
+      const worldWidth = gameWorld.clientWidth;
+      const worldHeight = gameWorld.clientHeight;
+      
+      // Ensure all players are within bounds
+      const myPresence = room.presence[room.clientId];
+      if (myPresence) {
+        let x = myPresence.x;
+        let y = myPresence.y;
+        
+        if (x > worldWidth - 50) x = worldWidth - 50;
+        if (y > worldHeight - 50) y = worldHeight - 50;
+        
+        if (x !== myPresence.x || y !== myPresence.y) {
+          room.updatePresence({
+            x, y
+          });
+        }
+      }
+    }
+    
+    // Submit a comment
+    async function submitComment() {
+      const content = commentInput.value.trim();
+      if (!content) return;
+      
+      await room.collection(commentCollection).create({
+        content,
+        reactions: {}
+      });
+      
+      commentInput.value = '';
+    }
+    
+    // Render all comments
+    function renderComments(comments) {
+      commentsContainer.innerHTML = '';
+      
+      // Sort comments by creation time (newest first)
+      const sortedComments = [...comments].sort((a, b) => 
+        new Date(b.created_at) - new Date(a.created_at)
+      );
+      
+      sortedComments.forEach(comment => {
+        const commentElement = createCommentElement(comment);
+        commentsContainer.appendChild(commentElement);
+      });
+    }
+    
+    // Create a comment DOM element
+    function createCommentElement(comment) {
+      const element = document.createElement('div');
+      element.className = 'comment';
+      element.dataset.id = comment.id;
+      
+      const header = document.createElement('div');
+      header.className = 'comment-header';
+      
+      const avatar = document.createElement('img');
+      avatar.className = 'comment-avatar';
+      avatar.src = `https://images.websim.ai/avatar/${comment.username}`;
+      avatar.alt = comment.username;
+      
+      const username = document.createElement('div');
+      username.className = 'comment-username';
+      username.textContent = `@${comment.username}`;
+      
+      header.appendChild(avatar);
+      header.appendChild(username);
+      
+      const content = document.createElement('div');
+      content.className = 'comment-content';
+      content.textContent = comment.content;
+      
+      const reactions = document.createElement('div');
+      reactions.className = 'comment-reactions';
+      
+      // Add existing reactions
+      if (comment.reactions) {
+        for (const emoji in comment.reactions) {
+          const users = comment.reactions[emoji];
+          const reactionElement = createReactionElement(emoji, users.length);
+          reactionElement.addEventListener('click', () => addReaction(comment.id, emoji));
+          reactions.appendChild(reactionElement);
+        }
+      }
+      
+      const addReactionBtn = document.createElement('button');
+      addReactionBtn.id = 'add-reaction-btn';
+      addReactionBtn.textContent = 'Add Reaction';
+      addReactionBtn.addEventListener('click', (e) => {
+        currentCommentId = comment.id;
+        emojiPicker.style.display = 'grid';
+        emojiPicker.style.bottom = `${window.innerHeight - e.clientY + 10}px`;
+        emojiPicker.style.right = `${window.innerWidth - e.clientX}px`;
+        e.stopPropagation();
+      });
+      
+      element.appendChild(header);
+      element.appendChild(content);
+      element.appendChild(reactions);
+      element.appendChild(addReactionBtn);
+      
+      return element;
+    }
+    
+    // Create a reaction DOM element
+    function createReactionElement(emoji, count) {
+      const element = document.createElement('div');
+      element.className = 'reaction';
+      
+      const emojiSpan = document.createElement('span');
+      emojiSpan.textContent = emoji;
+      
+      const countSpan = document.createElement('span');
+      countSpan.className = 'reaction-count';
+      countSpan.textContent = count;
+      
+      element.appendChild(emojiSpan);
+      element.appendChild(countSpan);
+      
+      return element;
+    }
+    
+    // Add a reaction to a comment
+    async function addReaction(commentId, emoji) {
+      // Get the current comment
+      const comments = room.collection(commentCollection).getList();
+      const comment = comments.find(c => c.id === commentId);
+      
+      if (!comment) return;
+      
+      // Create reactions object if it doesn't exist
+      if (!comment.reactions) {
+        comment.reactions = {};
+      }
+      
+      // Add current user to reaction
+      if (!comment.reactions[emoji]) {
+        comment.reactions[emoji] = [room.clientId];
+      } else if (!comment.reactions[emoji].includes(room.clientId)) {
+        comment.reactions[emoji].push(room.clientId);
+      } else {
+        // User already reacted with this emoji, so do nothing
+        return;
+      }
+      
+      // Update the comment
+      await room.collection(commentCollection).update(commentId, {
+        reactions: comment.reactions
+      });
+      
+      // Perform the action based on this emoji
+      performEmojiAction(emoji);
+    }
+    
+    // Load emoji actions from database
+    async function loadEmojiActions() {
+      // Get all emoji actions
+      const emojiActions = room.collection(emojiActionCollection).getList();
+      
+      // For any default actions not in the database, store them
+      for (const emoji in defaultActions) {
+        if (!emojiActions.find(a => a.emoji === emoji)) {
+          await room.collection(emojiActionCollection).create({
+            emoji,
+            action: defaultActions[emoji],
+            created_by_llm: false
+          });
+        }
+      }
+    }
+    
+    // Perform an action based on emoji
+    async function performEmojiAction(emoji) {
+      // Find action for this emoji in database
+      let emojiActions = room.collection(emojiActionCollection).getList();
+      let emojiAction = emojiActions.find(a => a.emoji === emoji);
+      
+      // If not found, generate with LLM
+      if (!emojiAction) {
+        await generateEmojiAction(emoji);
+        return; // The callback will trigger the action after generation
+      }
+      
+      // Perform the action
+      const myPresence = room.presence[room.clientId];
+      
+      // Update my presence with the new action
+      room.updatePresence({
+        lastAction: emojiAction.action,
+        lastActionTime: Date.now(),
+        currentAnimation: getAnimationForEmoji(emoji)
+      });
+      
+      // Log the action
+      logAction(`You ${emojiAction.action} (${emoji})`);
+    }
+    
+    // Generate an action for an emoji using LLM
+    async function generateEmojiAction(emoji) {
+      // Add loading indicator
+      const loadingEntry = document.createElement('div');
+      loadingEntry.className = 'log-entry';
+      loadingEntry.innerHTML = `Generating action for ${emoji} <div class="loading-spinner"></div>`;
+      actionLog.appendChild(loadingEntry);
+      actionLog.scrollTop = actionLog.scrollHeight;
+      
+      try {
+        // Use LLM to generate an action
+        const completion = await websim.chat.completions.create({
+          messages: [
+            {
+              role: "system",
+              content: "You are an AI that generates creative, appropriate actions for emoji in a multiplayer game. Generate a short phrase (5 words or less) that describes what a player would do when using this emoji as an action command. The phrase should start with a verb. Keep it appropriate for all ages."
+            },
+            {
+              role: "user",
+              content: `Generate an action for the emoji: ${emoji}`
+            }
+          ]
+        });
+        
+        const action = completion.content.trim();
+        
+        // Store in database
+        await room.collection(emojiActionCollection).create({
+          emoji,
+          action,
+          created_by_llm: true
+        });
+        
+        // Remove loading entry
+        actionLog.removeChild(loadingEntry);
+        
+        // Now perform the action
+        const myPresence = room.presence[room.clientId];
+        
+        // Update my presence with the new action
+        room.updatePresence({
+          lastAction: action,
+          lastActionTime: Date.now(),
+          currentAnimation: getAnimationForEmoji(emoji)
+        });
+        
+        // Log the action
+        logAction(`You ${action} (${emoji}) [Generated]`);
+        
+      } catch (error) {
+        // Remove loading entry
+        actionLog.removeChild(loadingEntry);
+        
+        // Log error
+        logAction(`Error generating action for ${emoji}`);
+        console.error('Error generating action:', error);
+      }
+    }
+    
+    // Perform an action for a player
+    function performAction(clientId, actionText) {
+      const player = players[clientId];
+      if (!player) return;
+      
+      // Show action bubble
+      const actionBubble = player.actionBubble;
+      actionBubble.textContent = actionText;
+      actionBubble.style.opacity = 1;
+      
+      // Create an effect over the player
+      const effectElement = document.createElement('div');
+      effectElement.className = 'action-effect';
+      
+      // Find emoji for this action
+      const emojiActions = room.collection(emojiActionCollection).getList();
+      const emojiAction = emojiActions.find(a => a.action === actionText);
+      
+      if (emojiAction) {
+        effectElement.textContent = emojiAction.emoji;
+      } else {
+        effectElement.textContent = '✨';
+      }
+      
+      effectElement.style.left = `${player.element.offsetLeft + 25}px`;
+      effectElement.style.top = `${player.element.offsetTop - 20}px`;
+      gameWorld.appendChild(effectElement);
+      
+      // Log the action if it's not the current user
+      if (clientId !== room.clientId) {
+        const playerInfo = room.peers[clientId];
+        logAction(`${playerInfo.username} ${actionText}`);
+      }
+      
+      // Remove effect and hide bubble after animation
+      setTimeout(() => {
+        gameWorld.removeChild(effectElement);
+        actionBubble.style.opacity = 0;
+      }, 1000);
+    }
+    
+    // Update player animation
+    function updatePlayerAnimation(clientId, animationName) {
+      const player = players[clientId];
+      if (!player) return;
+      
+      // Clear existing animation
+      player.element.style.animation = '';
+      
+      // Apply new animation
+      if (animationName) {
+        player.element.style.animation = `${animationName} 0.8s ease-in-out`;
+        
+        // For continuous animations, make them repeat
+        if (animationName === 'spin') {
+          player.element.style.animation = `${animationName} 0.8s linear infinite`;
+        }
+      }
+    }
+    
+    // Get appropriate animation for an emoji
+    function getAnimationForEmoji(emoji) {
+      switch(emoji) {
+        case '🦘':
+        case '🤸':
+        case '🏃':
+          return 'bounce';
+        case '💃':
+        case '🕺':
+          return 'spin';
+        case '😱':
+        case '🤯':
+        case '😡':
+          return 'shake';
+        default:
+          return null;
+      }
+    }
+    
+    // Log an action to the action log
+    function logAction(text) {
+      const logEntry = document.createElement('div');
+      logEntry.className = 'log-entry';
+      logEntry.textContent = text;
+      actionLog.appendChild(logEntry);
+      
+      // Limit the number of log entries
+      while (actionLog.children.length > 10) {
+        actionLog.removeChild(actionLog.firstChild);
+      }
+      
+      actionLog.scrollTop = actionLog.scrollHeight;
+    }
+    
+    // Close emoji picker when clicking outside of it
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.emoji-picker') || e.target.closest('#add-reaction-btn')) {
+        return;
+      }
+      emojiPicker.style.display = 'none';
+    });
+    
+    // Initialize the game when page loads
+    initialize();
+  </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
+
