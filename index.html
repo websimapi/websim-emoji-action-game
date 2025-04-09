@@ -271,6 +271,30 @@
       50% { transform: translateX(5px); }
       75% { transform: translateX(-5px); }
     }
+    
+    .metadata-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      margin-right: 10px;
+    }
+    
+    .metadata-username {
+      font-weight: bold;
+      color: #bb86fc;
+    }
+    
+    .metadata-timestamp {
+      font-size: 12px;
+      color: #999;
+      margin-left: 8px;
+    }
+    
+    .loading-container {
+      display: flex;
+      justify-content: center;
+      padding: 20px;
+    }
   </style>
 </head>
 <body>
@@ -292,20 +316,18 @@
   
   <div class="action-log" id="action-log"></div>
   
+  <!-- Import metadata comments handler -->
+  <script src="metadata-comments.js"></script>
+  
   <script>
     // Initialize WebsimSocket for multiplayer functionality
     const room = new WebsimSocket();
     
     // Setup collections
-    const commentCollection = 'comment_v1';
-    const reactionCollection = 'reaction_v1';
     const emojiActionCollection = 'emoji_action_v1';
     
     // Game state and DOM elements
     const gameWorld = document.getElementById('game-world');
-    const commentsContainer = document.getElementById('comments-container');
-    const commentInput = document.querySelector('.comment-input');
-    const commentSubmit = document.querySelector('.comment-submit');
     const emojiPicker = document.getElementById('emoji-picker');
     const actionLog = document.getElementById('action-log');
     
@@ -343,7 +365,8 @@
         emojiElement.className = 'emoji';
         emojiElement.textContent = emoji;
         emojiElement.addEventListener('click', () => {
-          addReaction(currentCommentId, emoji);
+          // Pass to metadata handler for reaction
+          addMetadataReaction(currentCommentId, emoji);
           emojiPicker.style.display = 'none';
         });
         emojiPicker.appendChild(emojiElement);
@@ -353,6 +376,9 @@
     // Initialize the game
     async function initialize() {
       await room.initialize();
+      
+      // Initialize the metadata comments handler
+      await initializeMetadataComments(room, performEmojiAction);
       
       // Set up presence with initial player position
       const worldWidth = gameWorld.clientWidth;
@@ -372,17 +398,11 @@
       // Load emoji actions from database
       loadEmojiActions();
       
-      // Subscribe to comments
-      room.collection(commentCollection).subscribe(renderComments);
-      
       // Listen for window resize
       window.addEventListener('resize', handleResize);
       
       // Initialize emoji picker
       initializeEmojiPicker();
-      
-      // Set up event listener for comment submission
-      commentSubmit.addEventListener('click', submitComment);
       
       // Log initial entry
       logAction('Connected to game!');
@@ -486,141 +506,6 @@
       }
     }
     
-    // Submit a comment
-    async function submitComment() {
-      const content = commentInput.value.trim();
-      if (!content) return;
-      
-      await room.collection(commentCollection).create({
-        content,
-        reactions: {}
-      });
-      
-      commentInput.value = '';
-    }
-    
-    // Render all comments
-    function renderComments(comments) {
-      commentsContainer.innerHTML = '';
-      
-      // Sort comments by creation time (newest first)
-      const sortedComments = [...comments].sort((a, b) => 
-        new Date(b.created_at) - new Date(a.created_at)
-      );
-      
-      sortedComments.forEach(comment => {
-        const commentElement = createCommentElement(comment);
-        commentsContainer.appendChild(commentElement);
-      });
-    }
-    
-    // Create a comment DOM element
-    function createCommentElement(comment) {
-      const element = document.createElement('div');
-      element.className = 'comment';
-      element.dataset.id = comment.id;
-      
-      const header = document.createElement('div');
-      header.className = 'comment-header';
-      
-      const avatar = document.createElement('img');
-      avatar.className = 'comment-avatar';
-      avatar.src = `https://images.websim.ai/avatar/${comment.username}`;
-      avatar.alt = comment.username;
-      
-      const username = document.createElement('div');
-      username.className = 'comment-username';
-      username.textContent = `@${comment.username}`;
-      
-      header.appendChild(avatar);
-      header.appendChild(username);
-      
-      const content = document.createElement('div');
-      content.className = 'comment-content';
-      content.textContent = comment.content;
-      
-      const reactions = document.createElement('div');
-      reactions.className = 'comment-reactions';
-      
-      // Add existing reactions
-      if (comment.reactions) {
-        for (const emoji in comment.reactions) {
-          const users = comment.reactions[emoji];
-          const reactionElement = createReactionElement(emoji, users.length);
-          reactionElement.addEventListener('click', () => addReaction(comment.id, emoji));
-          reactions.appendChild(reactionElement);
-        }
-      }
-      
-      const addReactionBtn = document.createElement('button');
-      addReactionBtn.id = 'add-reaction-btn';
-      addReactionBtn.textContent = 'Add Reaction';
-      addReactionBtn.addEventListener('click', (e) => {
-        currentCommentId = comment.id;
-        emojiPicker.style.display = 'grid';
-        emojiPicker.style.bottom = `${window.innerHeight - e.clientY + 10}px`;
-        emojiPicker.style.right = `${window.innerWidth - e.clientX}px`;
-        e.stopPropagation();
-      });
-      
-      element.appendChild(header);
-      element.appendChild(content);
-      element.appendChild(reactions);
-      element.appendChild(addReactionBtn);
-      
-      return element;
-    }
-    
-    // Create a reaction DOM element
-    function createReactionElement(emoji, count) {
-      const element = document.createElement('div');
-      element.className = 'reaction';
-      
-      const emojiSpan = document.createElement('span');
-      emojiSpan.textContent = emoji;
-      
-      const countSpan = document.createElement('span');
-      countSpan.className = 'reaction-count';
-      countSpan.textContent = count;
-      
-      element.appendChild(emojiSpan);
-      element.appendChild(countSpan);
-      
-      return element;
-    }
-    
-    // Add a reaction to a comment
-    async function addReaction(commentId, emoji) {
-      // Get the current comment
-      const comments = room.collection(commentCollection).getList();
-      const comment = comments.find(c => c.id === commentId);
-      
-      if (!comment) return;
-      
-      // Create reactions object if it doesn't exist
-      if (!comment.reactions) {
-        comment.reactions = {};
-      }
-      
-      // Add current user to reaction
-      if (!comment.reactions[emoji]) {
-        comment.reactions[emoji] = [room.clientId];
-      } else if (!comment.reactions[emoji].includes(room.clientId)) {
-        comment.reactions[emoji].push(room.clientId);
-      } else {
-        // User already reacted with this emoji, so do nothing
-        return;
-      }
-      
-      // Update the comment
-      await room.collection(commentCollection).update(commentId, {
-        reactions: comment.reactions
-      });
-      
-      // Perform the action based on this emoji
-      performEmojiAction(emoji);
-    }
-    
     // Load emoji actions from database
     async function loadEmojiActions() {
       // Get all emoji actions
@@ -649,9 +534,6 @@
         await generateEmojiAction(emoji);
         return; // The callback will trigger the action after generation
       }
-      
-      // Perform the action
-      const myPresence = room.presence[room.clientId];
       
       // Update my presence with the new action
       room.updatePresence({
@@ -701,8 +583,6 @@
         actionLog.removeChild(loadingEntry);
         
         // Now perform the action
-        const myPresence = room.presence[room.clientId];
-        
         // Update my presence with the new action
         room.updatePresence({
           lastAction: action,
@@ -827,8 +707,19 @@
     
     // Initialize the game when page loads
     initialize();
+    
+    // Export functions to be used by metadata-comments.js
+    window.gameLogic = {
+      openEmojiPicker: (commentId, event) => {
+        currentCommentId = commentId;
+        emojiPicker.style.display = 'grid';
+        emojiPicker.style.bottom = `${window.innerHeight - event.clientY + 10}px`;
+        emojiPicker.style.right = `${window.innerWidth - event.clientX}px`;
+        event.stopPropagation();
+      },
+      logAction
+    };
   </script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>
-
